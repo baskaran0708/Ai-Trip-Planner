@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react"
-import GooglePlacesAutocomplete from "react-google-places-autocomplete"
 import { Input } from "@/components/ui/input"
 import { AI_PROMPT, SelectBudgetOptions,SelectTravelList } from "@/constants/options"
 import { Button } from "@/components/ui/button"
@@ -20,14 +19,20 @@ import { doc, setDoc } from "firebase/firestore";
 import { db } from "@/service/firebaseConfig"
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import { useNavigate } from "react-router-dom"
+import { searchUnsplashImages } from "@/service/GlobalApi"
 
 function CreateTrip() {
   const [place,setPlace]=useState();
   const [formData,setFromData]=useState([]);
   const [openDialog,setOpenDialog]=useState(false);
   const [loading,setLoading]=useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [locationSuggestions, setLocationSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [locationImages, setLocationImages] = useState([]);
+  const [imagesLoading, setImagesLoading] = useState(false);
   const navigate=useNavigate();
-
+  const locationIqKey = "pk.e438e1b3aa59a3139211392a75fbc40d";
 
   const handleInputChange=(name,value)=>{
     setFromData({
@@ -35,6 +40,7 @@ function CreateTrip() {
       [name]:value
     })
   }
+  
   useEffect(()=>{ 
     console.log(formData)
   },[formData])
@@ -76,24 +82,136 @@ function CreateTrip() {
       userSelection:formData,
       tripData:JSON.parse(TripData),
       userEmail:user?.email,
-      id:docId
+      id:docId,
+      locationImages: locationImages
     });
     setLoading(false);
     navigate('/view-trip/'+docId);
   }
 
   const GetUserProfile=(tokenInfo)=>{
-    axios.get(`https://www.googleapis.com/oauth2/v1/userinfo?acess_token=${tokenInfo?.access_token}`,{
+    console.log("Token info:", tokenInfo);
+    axios.get(`https://www.googleapis.com/oauth2/v1/userinfo?access_token=${tokenInfo?.access_token}`,{
       headers: {
        Authorization: `Bearer ${tokenInfo?.access_token}`,
-       Accept:'Application/json'
+       Accept:'application/json'
       }
-    }).then((resp) => {console.log(resp);
-      localStorage.setItem('user',JSON.stringify(resp.data));
+    }).then((resp) => {
+      console.log("Google user data:", resp.data);
+      const userData = resp.data;
+      
+      // Ensure the 'picture' field is properly set
+      if (!userData.picture && userData.image) {
+        userData.picture = userData.image;
+      }
+      
+      localStorage.setItem('user',JSON.stringify(userData));
       setOpenDialog(false);
       OnGenerateTrip();
-    })
+    }).catch(err => {
+      console.error("Error fetching user profile:", err);
+      toast.error("Failed to get user profile. Please try again.");
+    });
   }
+
+  // Function to fetch location suggestions from LocationIQ
+  const searchLocations = async (query) => {
+    setSearchTerm(query);
+    
+    if (query.length < 3) {
+      setLocationSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    try {
+      const response = await axios.get(`https://api.locationiq.com/v1/autocomplete.php`, {
+        params: {
+          key: locationIqKey,
+          q: query,
+          limit: 5,
+          format: 'json'
+        }
+      });
+      setLocationSuggestions(response.data || []);
+      setShowSuggestions(true);
+    } catch (error) {
+      console.error("Error fetching location suggestions:", error);
+      toast.error("Error fetching location suggestions. Please try again.");
+      setLocationSuggestions([]);
+    }
+  };
+
+  // Function to fetch images from Unsplash when a location is selected
+  const fetchLocationImages = async (locationName) => {
+    try {
+      setImagesLoading(true);
+      const result = await searchUnsplashImages(locationName, 5);
+      if (result && result.response && result.response.results) {
+        const images = result.response.results.map(photo => ({
+          id: photo.id,
+          url: photo.urls.regular,
+          small: photo.urls.small,
+          thumb: photo.urls.thumb,
+          alt: photo.alt_description || locationName,
+          user: {
+            name: photo.user.name,
+            link: photo.user.links.html
+          }
+        }));
+        setLocationImages(images);
+      }
+    } catch (error) {
+      console.error("Error fetching Unsplash images:", error);
+      toast.error("Failed to fetch location images");
+    } finally {
+      setImagesLoading(false);
+    }
+  };
+
+  const selectLocation = (location) => {
+    const locationName = location.display_name;
+    setSearchTerm(locationName);
+    setPlace(location);
+    
+    // Extract the primary location name (city or country)
+    const primaryLocation = location.address?.city || 
+                           location.address?.state || 
+                           location.address?.country ||
+                           locationName.split(',')[0].trim();
+    
+    handleInputChange('location', locationName);
+    setShowSuggestions(false);
+    
+    // Fetch images for the selected location
+    fetchLocationImages(primaryLocation);
+  };
+
+  // Display the first image as a preview after location selection
+  const LocationImagePreview = () => {
+    if (imagesLoading) {
+      return <div className="mt-2 text-sm text-gray-500">Loading location images...</div>;
+    }
+    
+    if (locationImages.length > 0) {
+      return (
+        <div className="mt-3">
+          <div className="relative rounded-lg overflow-hidden h-40">
+            <img 
+              src={locationImages[0].url} 
+              alt={locationImages[0].alt}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1">
+              Photo by <a href={locationImages[0].user.link} target="_blank" rel="noopener noreferrer" className="underline">{locationImages[0].user.name}</a> on Unsplash
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    return null;
+  };
 
   return (
     <div className="px-5 mt-12 sm:px-10 md:px-32 lg:px-56 xl:px-72">
@@ -105,13 +223,30 @@ function CreateTrip() {
       <div className="mt-20 flex flex-col gap-10 ">
        <div className="mb-5">
         <label className="text-xl mb-3 font-medium">What is destination of choice?</label>
-          <GooglePlacesAutocomplete
-          apiKey={import.meta.env.VITE_GOOGLE_PLACES_API_KEY}
-          selectProps={{
-            place,
-            onChange:(v)=>{setPlace(v); handleInputChange('location',v.label)}
-          }}
-        />
+        <div className="relative">
+          <Input
+            type="text"
+            placeholder="Enter a location..."
+            value={searchTerm}
+            onChange={(e) => searchLocations(e.target.value)}
+            className="w-full p-2 border rounded"
+          />
+          {showSuggestions && locationSuggestions.length > 0 && (
+            <ul className="absolute z-10 w-full bg-white border rounded-md shadow-lg mt-1">
+              {locationSuggestions.map((location, index) => (
+                <li 
+                  key={index} 
+                  className="p-2 cursor-pointer hover:bg-gray-100 border-b"
+                  onClick={() => selectLocation(location)}
+                >
+                  {location.display_name}
+                </li>
+              ))}
+            </ul>
+          )}
+          {/* Show image preview when a location is selected */}
+          <LocationImagePreview />
+        </div>
        </div>
 
         <div className="mb-5">
@@ -165,7 +300,7 @@ function CreateTrip() {
         <DialogContent>
           <DialogHeader>
             <DialogDescription>
-              <img src="/logo.svg"/>
+              <img src="/trip-logo-image.png" alt="Logo" className="h-16 w-auto mx-auto"/>
               <h2 className="font-bold text-lg mt-6">Sign In with Google</h2>
               <p>Sign In to the App with Google authentication securely</p>
               <Button 
