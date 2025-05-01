@@ -1,13 +1,14 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/Ai-Trip-Planner/trip-logo-image.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>www.tripplanner.com</title>
-    <script type="module" crossorigin src="/Ai-Trip-Planner/assets/index-DZNG08ny.js"></script>
-    <link rel="stylesheet" crossorigin href="/Ai-Trip-Planner/assets/index-DwqmgruV.css">
-    <!-- Start Single Page Apps for GitHub Pages -->
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="./trip-logo-image.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trip Planner App</title>
+  <!-- Find the CSS file in the dist/assets directory -->
+  <link rel="stylesheet" href="./assets/index-DwqmgruV.css">
+  
+  <!-- Start Single Page Apps for GitHub Pages -->
   <script type="text/javascript">
     // Single Page Apps for GitHub Pages
     // MIT License
@@ -32,7 +33,23 @@
   </script>
   <!-- End Single Page Apps for GitHub Pages -->
 </head>
-  <body>
-    <div id="root"></div>
-  </body>
+<body>
+  <div id="root"></div>
+  <script>
+    // Error handling for script loading
+    window.addEventListener('error', function(e) {
+      console.error('Script loading error:', e);
+      if (e.target && e.target.tagName === 'SCRIPT') {
+        document.body.innerHTML += `<div style="color:red; padding:20px; font-family:sans-serif;">
+          <h2>Error Loading Application Script</h2>
+          <p>Failed to load: ${e.target.src}</p>
+          <p>Error: ${e.message}</p>
+          <p>Try refreshing the page. If the problem persists, please contact support.</p>
+        </div>`;
+      }
+    }, true);
+  </script>
+  <!-- Find the JS file in the dist/assets directory -->
+  <script type="module" src="./assets/index-DZNG08ny.js"></script>
+</body>
 </html>
