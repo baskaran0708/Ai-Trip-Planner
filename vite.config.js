@@ -4,6 +4,7 @@ import { defineConfig } from "vite"
 
 export default defineConfig({
   plugins: [react()],
+  base: "/Ai-Trip-Planner/",
   resolve: {
     alias: {
       // eslint-disable-next-line no-undef
