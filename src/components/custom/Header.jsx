@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '../ui/button';
+import { Link } from 'react-router-dom';
 import {
   Popover,
   PopoverContent,
@@ -15,12 +16,14 @@ import {
 import { FcGoogle } from "react-icons/fc";
 import axios from 'axios';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from '@/lib/AuthContext';
 
 function Header() {
   const [user, setUser] = useState(null);
-  const [openDialog,setOpenDialog]=useState(false);
+  const [openDialog, setOpenDialog] = useState(false);
   const [error, setError] = useState(null);
   const [profileImage, setProfileImage] = useState('');
+  const { currentUser, isAdmin, signInWithGoogle, signOut } = useAuth();
 
   // Process profile image URL to ensure it works correctly
   const processProfileImageUrl = (url) => {
@@ -88,8 +91,11 @@ function Header() {
         setUser(userData);
         setProfileImage(processProfileImageUrl(userData.picture || ''));
         setOpenDialog(false);
-        // Don't reload the page to avoid losing state
-        // window.location.reload();
+        
+        // Also trigger sign in with our auth context
+        if (signInWithGoogle) {
+          signInWithGoogle().catch(err => console.error("Auth context sign in error:", err));
+        }
       }).catch(err => {
         console.error("Error fetching user profile:", err);
         setError("Failed to get user profile. Please try again.");
@@ -107,18 +113,32 @@ function Header() {
     return name.split(' ').map(part => part[0]).join('').toUpperCase();
   };
 
+  const handleLogout = () => {
+    googleLogout();
+    localStorage.clear();
+    setUser(null);
+    setProfileImage('');
+    
+    // Also sign out with our auth context
+    if (signOut) {
+      signOut().catch(err => console.error("Auth context sign out error:", err));
+    }
+  };
+
   return (
     <div className='p-3 shadow-sm flex justify-between items-center px-4'>
-      <img src='/trip-logo-image.png' alt="Logo" />
+      <Link to="/">
+        <img src="./trip-logo-image.png" alt="Logo" className="max-h-12" />
+      </Link>
       <div >
        {user ? 
        <div className='flex items-center gap-4'>
-        <a href="/create-trip">
-         <Button variant="outline" className= "rounded-full">Create Trip</Button> 
-        </a>
-        <a href="/my-trips">
-        <Button variant="outline" className= "rounded-full">My Trips </Button> 
-        </a>
+        <Link to="/create-trip">
+          <Button variant="outline" className="rounded-full">Create Trip</Button> 
+        </Link>
+        <Link to="/my-trips">
+          <Button variant="outline" className="rounded-full">My Trips</Button> 
+        </Link>
          <Popover>
           <PopoverTrigger>
             <Avatar className="cursor-pointer">
@@ -133,14 +153,20 @@ function Header() {
               <p className="font-medium">{user.name || 'User'}</p>
               <p className="text-sm text-gray-500">{user.email || ''}</p>
               <hr className="my-2" />
-              <h2 className="cursor-pointer hover:text-red-500" onClick={()=>{
-                googleLogout();
-                localStorage.clear();
-                setUser(null);
-                setProfileImage('');
-                // Avoid page reload to prevent flickering
-                // window.location.reload();
-              }}>Logout</h2>
+              
+              {/* Admin panel link - only shown to admin users */}
+              {isAdmin && (
+                <Link 
+                  to="/admin" 
+                  className="py-2 text-sm hover:text-primary transition-colors"
+                >
+                  Admin Panel
+                </Link>
+              )}
+              
+              <h2 className="cursor-pointer hover:text-red-500 py-2 text-sm" onClick={handleLogout}>
+                Logout
+              </h2>
             </div>
           </PopoverContent>
          </Popover>
@@ -157,7 +183,7 @@ function Header() {
         <DialogContent>
           <DialogHeader>
             <DialogDescription>
-              <img src="/trip-logo-image.png" alt="Logo" />
+              <img src="./trip-logo-image.png" alt="Logo" />
               <h2 className="font-bold text-lg mt-6">Sign In with Google</h2>
               <p>Sign In to the App with Google authentication securely</p>
               {error && <p className="text-red-600 mt-2">{error}</p>}
