@@ -21,14 +21,18 @@ Currently, two official plugins are available:
 
   ### Features: 
 
-- Environment,Vite set up
+- Environment, Vite set up
 - Firebase, Database creation
 - Google Authentication
+- **Email/Password Authentication** (New!)
+- **Admin Panel** with Dashboard, User Management, Trip Management, Analytics & Settings (New!)
 - Generate Trip From Gemini AI
+- **AI Response Validation** & Error Handling (Improved!)
 - React Routing
-- Shadcn/ui
+- Shadcn/ui Components (Buttons, Cards, Dialogs, Popovers, Tabs, etc.)
 - LocationIQ for Place Autocomplete
-- Display place photo using Google Photo API and Unsplash API
+- Display place photo using Unsplash API
+- **Landing Page Enhancements** (Popular Destinations, Featured Hotels) (New!)
 - Full responsiveness on all pages
 - Deploy App on Vercel
 
@@ -55,8 +59,16 @@ https://full-stack-ai-trip-planner.vercel.app/
 ```js
 VITE_GOOGLE_AUTH_CLIENT_ID
 VITE_GOOGLE_GEMINI_AI_API_KEY
-VITE_GOOGLE_PLACES_API_KEY
+VITE_GOOGLE_PLACES_API_KEY // Note: Currently not used, replaced by LocationIQ/Unsplash
 VITE_UNSPLASH_ACCESS_KEY
+VITE_LOCATIONIQ_API_KEY="pk.e438e1b3aa59a3139211392a75fbc40d"
+// Firebase config variables (optional, usually in firebaseConfig.js)
+// VITE_FIREBASE_API_KEY=...
+// VITE_FIREBASE_AUTH_DOMAIN=...
+// VITE_FIREBASE_PROJECT_ID=...
+// VITE_FIREBASE_STORAGE_BUCKET=...
+// VITE_FIREBASE_MESSAGING_SENDER_ID=...
+// VITE_FIREBASE_APP_ID=...
 ``` 
 
 ## API Setup
@@ -64,10 +76,8 @@ VITE_UNSPLASH_ACCESS_KEY
 This project requires several API keys to function properly:
 1. Google OAuth Client ID - For user authentication
 2. Google Gemini AI API Key - For AI-powered trip planning
-3. Google Places API Key - For location image fallbacks
-4. Unsplash API Key - For high-quality location images
-
-The project already uses a LocationIQ API key for location search.
+3. Unsplash API Key - For high-quality location images
+4. LocationIQ API Key - For location search and autocomplete (provided in code for demo)
 
 For detailed instructions on how to obtain and set up all required API keys, please refer to our [API Setup Guide](./API_SETUP_GUIDE.md).
 
@@ -99,6 +109,13 @@ To fix the "Missing required parameter client_id" error, follow these steps:
 
 ## Recent Updates
 
+- **Email Authentication**: Added sign-up, sign-in, and password reset using email/password.
+- **Admin Panel Enhancements**: Fixed date formatting errors, added search functionality, and improved error handling. Added a new Admin Settings page.
+- **Landing Page Upgrades**: 
+    - Added sections for "Popular Destinations" and "Featured Hotels".
+    - Improved image loading performance and added fallbacks.
+    - Redesigned the footer for a cleaner look.
+- **Trip Generation Fixes**: Improved handling of AI response format variations to prevent errors when displaying trip itineraries and hotel options.
 - Added Unsplash API integration for high-quality location images
 - Fixed Google OAuth authentication issues
 - Added responsive footer with social links

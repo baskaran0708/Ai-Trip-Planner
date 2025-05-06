@@ -11,17 +11,37 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FcGoogle } from "react-icons/fc";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 
 function Header() {
   const [openDialog, setOpenDialog] = useState(false);
   const [error, setError] = useState(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const { currentUser, isAdmin, signInWithGoogle, signOut, loading } = useAuth();
+  const [activeTab, setActiveTab] = useState("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  
+  const { 
+    currentUser, 
+    isAdmin, 
+    signInWithGoogle, 
+    signInWithEmail, 
+    signUpWithEmail, 
+    resetPassword,
+    signOut, 
+    loading 
+  } = useAuth();
   const navigate = useNavigate();
 
   // Don't render anything until Firebase Auth has loaded
@@ -66,7 +86,7 @@ function Header() {
     });
   };
 
-  const handleSignIn = async () => {
+  const handleGoogleSignIn = async () => {
     setError(null);
     setIsAuthenticating(true);
     
@@ -75,7 +95,7 @@ function Header() {
       setOpenDialog(false);
       toast.success(`Welcome, ${currentUser?.displayName || 'User'}!`);
     } catch (err) {
-      console.error("Sign in error:", err);
+      console.error("Google sign in error:", err);
       
       let errorMessage = "Failed to sign in. Please try again.";
       
@@ -93,6 +113,120 @@ function Header() {
     } finally {
       setIsAuthenticating(false);
     }
+  };
+
+  const handleEmailSignIn = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setIsAuthenticating(true);
+    
+    if (!email || !password) {
+      setError("Email and password are required");
+      setIsAuthenticating(false);
+      return;
+    }
+    
+    try {
+      await signInWithEmail(email, password);
+      setOpenDialog(false);
+      toast.success(`Welcome back!`);
+    } catch (err) {
+      console.error("Email sign in error:", err);
+      
+      let errorMessage = "Failed to sign in. Please check your email and password.";
+      
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        errorMessage = "Invalid email or password.";
+      } else if (err.code === 'auth/too-many-requests') {
+        errorMessage = "Too many failed login attempts. Please try again later.";
+      }
+      
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const handleEmailSignUp = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setIsAuthenticating(true);
+    
+    if (!email || !password) {
+      setError("Email and password are required");
+      setIsAuthenticating(false);
+      return;
+    }
+    
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      setIsAuthenticating(false);
+      return;
+    }
+    
+    try {
+      await signUpWithEmail(email, password, displayName);
+      setOpenDialog(false);
+      toast.success(`Account created successfully!`);
+    } catch (err) {
+      console.error("Email sign up error:", err);
+      
+      let errorMessage = "Failed to create account.";
+      
+      if (err.code === 'auth/email-already-in-use') {
+        errorMessage = "This email is already registered. Try signing in instead.";
+      } else if (err.code === 'auth/invalid-email') {
+        errorMessage = "Invalid email address.";
+      }
+      
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const handlePasswordReset = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setIsAuthenticating(true);
+    
+    if (!email) {
+      setError("Email is required");
+      setIsAuthenticating(false);
+      return;
+    }
+    
+    try {
+      await resetPassword(email);
+      toast.success(`Password reset email sent to ${email}`);
+      setShowResetPassword(false);
+    } catch (err) {
+      console.error("Password reset error:", err);
+      
+      let errorMessage = "Failed to send password reset email.";
+      
+      if (err.code === 'auth/user-not-found') {
+        errorMessage = "No account found with this email.";
+      } else if (err.code === 'auth/invalid-email') {
+        errorMessage = "Invalid email address.";
+      }
+      
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const resetForm = () => {
+    setEmail("");
+    setPassword("");
+    setDisplayName("");
+    setError(null);
+    setShowResetPassword(false);
+    setIsAuthenticating(false);
   };
 
   return (
@@ -164,33 +298,217 @@ function Header() {
       <Dialog open={openDialog} onOpenChange={(open) => {
         setOpenDialog(open);
         if (!open) {
-          setError(null);
-          setIsAuthenticating(false);
+          resetForm();
         }
       }}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogDescription>
-              <img src="./trip-logo-image.png" alt="Logo" />
-              <h2 className="font-bold text-lg mt-6">Sign In with Google</h2>
-              <p>Sign In to the App with Google authentication securely</p>
-              
-              {error && <p className="text-red-600 mt-2">{error}</p>}
-              
-              <div className="mt-2 text-sm text-gray-500">
-                <p>A popup will appear for you to select your Google account.</p>
-              </div>
-              
-              <Button 
-                onClick={handleSignIn} 
-                className="w-full mt-5 flex gap-4 items-center"
-                disabled={isAuthenticating}
-              >
-                <FcGoogle className="h-7 w-7"/>
-                {isAuthenticating ? 'Signing in...' : 'Sign In With Google'}
-              </Button>
+            <DialogTitle className="text-center">
+              <img src="./trip-logo-image.png" alt="Logo" className="h-10 mx-auto mb-4" />
+              <h2 className="text-xl">Welcome to AI Trip Planner</h2>
+            </DialogTitle>
+            <DialogDescription className="text-center pt-2">
+              Sign in to plan your dream trips
             </DialogDescription>
           </DialogHeader>
+          
+          {showResetPassword ? (
+            <div className="py-2">
+              <h3 className="font-medium mb-4">Reset Password</h3>
+              <form onSubmit={handlePasswordReset} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reset-email">Email</Label>
+                  <Input 
+                    id="reset-email" 
+                    type="email" 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                  />
+                </div>
+                
+                {error && <p className="text-red-600 text-sm">{error}</p>}
+                
+                <div className="flex gap-2 pt-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setShowResetPassword(false)}
+                    disabled={isAuthenticating}
+                    className="flex-1"
+                  >
+                    Back
+                  </Button>
+                  <Button 
+                    type="submit"
+                    disabled={isAuthenticating}
+                    className="flex-1"
+                  >
+                    {isAuthenticating ? 'Sending...' : 'Send Reset Link'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            <Tabs defaultValue="signin" value={activeTab} onValueChange={setActiveTab} className="pt-2">
+              <TabsList className="grid grid-cols-2 mb-4">
+                <TabsTrigger value="signin">Sign In</TabsTrigger>
+                <TabsTrigger value="signup">Create Account</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="signin" className="space-y-4">
+                <Button 
+                  onClick={handleGoogleSignIn} 
+                  className="w-full gap-4 items-center"
+                  variant="outline"
+                  disabled={isAuthenticating}
+                >
+                  <FcGoogle className="h-5 w-5"/>
+                  {isAuthenticating ? 'Signing in...' : 'Sign In With Google'}
+                </Button>
+                
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-200"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-gray-500">or</span>
+                  </div>
+                </div>
+                
+                <form onSubmit={handleEmailSignIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-email">Email</Label>
+                    <Input 
+                      id="signin-email" 
+                      type="email" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Enter your email"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="signin-password">Password</Label>
+                      <button 
+                        type="button"
+                        onClick={() => setShowResetPassword(true)} 
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                    <Input 
+                      id="signin-password" 
+                      type="password" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                    />
+                  </div>
+                  
+                  {error && <p className="text-red-600 text-sm">{error}</p>}
+                  
+                  <Button 
+                    type="submit"
+                    disabled={isAuthenticating}
+                    className="w-full"
+                  >
+                    {isAuthenticating ? 'Signing in...' : 'Sign In'}
+                  </Button>
+                </form>
+                
+                <p className="text-center text-sm text-gray-500">
+                  Don't have an account?{' '}
+                  <button 
+                    type="button"
+                    onClick={() => setActiveTab("signup")} 
+                    className="text-primary hover:underline"
+                  >
+                    Create one
+                  </button>
+                </p>
+              </TabsContent>
+              
+              <TabsContent value="signup" className="space-y-4">
+                <Button 
+                  onClick={handleGoogleSignIn} 
+                  className="w-full gap-4 items-center"
+                  variant="outline"
+                  disabled={isAuthenticating}
+                >
+                  <FcGoogle className="h-5 w-5"/>
+                  {isAuthenticating ? 'Signing up...' : 'Sign Up With Google'}
+                </Button>
+                
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-200"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-gray-500">or</span>
+                  </div>
+                </div>
+                
+                <form onSubmit={handleEmailSignUp} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-name">Name (Optional)</Label>
+                    <Input 
+                      id="signup-name" 
+                      type="text" 
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder="Enter your name"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email">Email</Label>
+                    <Input 
+                      id="signup-email" 
+                      type="email" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Enter your email"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">Password</Label>
+                    <Input 
+                      id="signup-password" 
+                      type="password" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Create a password"
+                    />
+                  </div>
+                  
+                  {error && <p className="text-red-600 text-sm">{error}</p>}
+                  
+                  <Button 
+                    type="submit"
+                    disabled={isAuthenticating}
+                    className="w-full"
+                  >
+                    {isAuthenticating ? 'Creating Account...' : 'Create Account'}
+                  </Button>
+                </form>
+                
+                <p className="text-center text-sm text-gray-500">
+                  Already have an account?{' '}
+                  <button 
+                    type="button"
+                    onClick={() => setActiveTab("signin")} 
+                    className="text-primary hover:underline"
+                  >
+                    Sign in
+                  </button>
+                </p>
+              </TabsContent>
+            </Tabs>
+          )}
         </DialogContent>
       </Dialog>
     </div>

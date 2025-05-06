@@ -7,6 +7,10 @@ import {
   signInWithPopup,
   setPersistence,
   browserLocalPersistence,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { app, db } from '@/service/firebaseConfig';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -96,6 +100,52 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Sign up with email and password
+  const signUpWithEmail = async (email, password, displayName) => {
+    try {
+      console.log("[AuthContext] Attempting Email Sign Up...");
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // Update the user profile with the display name
+      if (displayName) {
+        await updateProfile(user, { displayName });
+      }
+      
+      console.log("[AuthContext] Email sign up successful:", user.email);
+      return user;
+    } catch (error) {
+      console.error("[AuthContext] Email sign up error:", error);
+      throw error;
+    }
+  };
+
+  // Sign in with email and password
+  const signInWithEmail = async (email, password) => {
+    try {
+      console.log("[AuthContext] Attempting Email Sign In...");
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      console.log("[AuthContext] Email sign in successful:", userCredential.user.email);
+      return userCredential.user;
+    } catch (error) {
+      console.error("[AuthContext] Email sign in error:", error);
+      throw error;
+    }
+  };
+
+  // Reset password
+  const resetPassword = async (email) => {
+    try {
+      console.log("[AuthContext] Sending password reset email...");
+      await sendPasswordResetEmail(auth, email);
+      console.log("[AuthContext] Password reset email sent successfully");
+      return true;
+    } catch (error) {
+      console.error("[AuthContext] Password reset error:", error);
+      throw error;
+    }
+  };
+
   // Sign out function
   const signOut = async () => {
     try {
@@ -119,8 +169,8 @@ export const AuthProvider = ({ children }) => {
         await setDoc(userRef, {
           uid: user.uid,
           email: user.email,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
+          displayName: user.displayName || user.email.split('@')[0],
+          photoURL: user.photoURL || null,
           isAdmin: false,
           createdAt: serverTimestamp(),
           lastLogin: serverTimestamp()
@@ -167,6 +217,9 @@ export const AuthProvider = ({ children }) => {
     isAdmin,
     loading,
     signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
+    resetPassword,
     signOut
   };
 
