@@ -31,19 +31,89 @@ function TripPlace({trip}) {
     return `Day ${day}${dayDescription}`;
   };
 
+  // Ensure that itinerary is an array before trying to map it
+  const getItinerary = () => {
+    if (!trip?.tripData?.itinerary) {
+      return [];
+    }
+    
+    // If itinerary is already an array, return it
+    if (Array.isArray(trip.tripData.itinerary)) {
+      return trip.tripData.itinerary;
+    }
+    
+    // If itinerary is an object with day keys, convert to array
+    if (typeof trip.tripData.itinerary === 'object') {
+      try {
+        // Try to convert from object format to array format
+        const itineraryArray = [];
+        Object.keys(trip.tripData.itinerary).forEach(key => {
+          if (key.toLowerCase().includes('day')) {
+            const dayNumber = key.replace(/\D/g, '');
+            const dayData = trip.tripData.itinerary[key];
+            
+            // Handle different possible formats
+            if (Array.isArray(dayData)) {
+              // If day data is an array of places
+              itineraryArray.push({
+                day: dayNumber,
+                plan: dayData.map(place => ({
+                  placeName: place.name || place.placeName,
+                  placeDetails: place.description || place.placeDetails,
+                  placeImageUrl: place.imageUrl || place.placeImageUrl,
+                  ...place
+                }))
+              });
+            } else if (typeof dayData === 'object') {
+              // If day data is an object with details
+              itineraryArray.push({
+                day: dayNumber,
+                plan: [{
+                  placeName: dayData.name || dayData.placeName,
+                  placeDetails: dayData.description || dayData.placeDetails,
+                  placeImageUrl: dayData.imageUrl || dayData.placeImageUrl,
+                  ...dayData
+                }]
+              });
+            }
+          }
+        });
+        
+        return itineraryArray;
+      } catch (error) {
+        console.error("Error parsing itinerary:", error);
+        return [];
+      }
+    }
+    
+    return [];
+  };
+
+  const itinerary = getItinerary();
+
+  // If no valid itinerary data, show a message
+  if (itinerary.length === 0) {
+    return (
+      <div className='my-4'>
+        <h2 className='font-bold text-xl'>Places to Visit</h2>
+        <p className='text-gray-500 mt-2'>No places to visit information available for this trip.</p>
+      </div>
+    );
+  }
+
   return (
     <div className='my-4'>
       <h2 className='font-bold text-xl'>Places to Visit</h2>
       <div>
-        {trip?.tripData?.itinerary?.map((item,i)=>(
-            <div key={i}>
-                <h2 className='font-medium text-l'>{formatDayText(item?.day, item, i)}</h2>
-                <div className='grid md:grid-cols-2 gap-4'>
-                        {item.plan?.map((place,index)=>(
-                          <PlaceCardItem key={index} place={place}/>
-                        ))}
-                    </div>
-        </div>
+        {itinerary.map((item, i) => (
+          <div key={i}>
+            <h2 className='font-medium text-l'>{formatDayText(item?.day, item, i)}</h2>
+            <div className='grid md:grid-cols-2 gap-4'>
+              {Array.isArray(item.plan) && item.plan.map((place, index) => (
+                <PlaceCardItem key={index} place={place}/>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     </div>

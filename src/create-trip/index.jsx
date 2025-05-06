@@ -13,17 +13,35 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { FcGoogle } from "react-icons/fc";
-import { useGoogleLogin } from "@react-oauth/google"
-import axios from "axios"
 import { doc, setDoc } from "firebase/firestore"; 
 import { db } from "@/service/firebaseConfig"
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import { searchUnsplashImages } from "@/service/GlobalApi"
+import { useAuth } from "@/lib/AuthContext";
+import axios from "axios";
+
+// Add this function at the top level, outside the component
+const logObject = (obj, label) => {
+  try {
+    console.log(`${label}:`, JSON.stringify(obj));
+  } catch (error) {
+    console.log(`${label} (circular references):`, obj);
+  }
+};
 
 function CreateTrip() {
+  const location = useLocation();
+  const preselectedDestination = location.state?.preselectedDestination;
+  const preselectedDays = location.state?.preselectedDays;
+  
   const [place,setPlace]=useState();
-  const [formData,setFromData]=useState([]);
+  const [formData,setFromData]=useState({
+    totalDays: preselectedDays || "",
+    location: preselectedDestination || "",
+    traveler: "",
+    budget: ""
+  });
   const [openDialog,setOpenDialog]=useState(false);
   const [loading,setLoading]=useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -32,6 +50,7 @@ function CreateTrip() {
   const [locationImages, setLocationImages] = useState([]);
   const [imagesLoading, setImagesLoading] = useState(false);
   const navigate=useNavigate();
+  const { currentUser, signInWithGoogle } = useAuth();
   const locationIqKey = "pk.e438e1b3aa59a3139211392a75fbc40d";
 
   const handleInputChange=(name,value)=>{
@@ -45,76 +64,197 @@ function CreateTrip() {
     console.log(formData)
   },[formData])
 
-  const login=useGoogleLogin({
-    onSuccess:(codeResp)=>GetUserProfile(codeResp),
-    onError:(error)=>console.log(error)
-  })
-
-  const OnGenerateTrip = async()=>{
-    const user = localStorage.getItem('user')
-    if(!user){
-      setOpenDialog(true)
-      return ;
+  // Modified to handle preselected destination on component mount
+  useEffect(() => {
+    if (preselectedDestination) {
+      setSearchTerm(preselectedDestination);
+      fetchLocationImages(preselectedDestination);
     }
-    if(formData?.totalDays>5 || !formData?.location || !formData?.budget || !formData?.traveler){
-      toast("Please fill all details!")
-      return ;
+  }, [preselectedDestination]);
+
+  const OnGenerateTrip = async() => {
+    console.log("Generate Trip button clicked");
+    console.log("Current user:", currentUser?.email);
+    logObject(formData, "Form data");
+    
+    if(!currentUser){
+      try {
+        console.log("User not signed in, prompting sign in");
+        await signInWithGoogle();
+        toast.info("Please sign in with Google to generate a trip. Click 'Generate Trip' again after signing in.");
+      } catch (error) {
+        console.error("Sign in failed:", error);
+        toast.error("Sign in failed. Please try again.");
+      }
+      return;
     }
-    toast("Form generated.");
+    
+    if(!formData?.location || !formData?.totalDays || !formData?.budget || !formData?.traveler) {
+      console.log("Form validation failed - missing fields");
+      toast.error("Please fill all required fields!");
+      return;
+    }
+    
+    if(formData.totalDays > 5) {
+      console.log("Trip days exceeds maximum");
+      toast.warning("Trip days should not exceed 5 days");
+      return;
+    }
+    
+    toast("Generating Trip...");
     setLoading(true);
-    const FINAL_PROMPT=AI_PROMPT
-    .replace('{location}',formData?.location)
-    .replace('{totalDays}',formData?.totalDays)
-    .replace('{traveler}',formData?.traveler)
-    .replace('{budget}',formData?.budget)
+    const FINAL_PROMPT = AI_PROMPT
+      .replace('{location}', formData?.location)
+      .replace('{totalDays}', formData?.totalDays)
+      .replace('{traveler}', formData?.traveler)
+      .replace('{budget}', formData?.budget);
+    
+    console.log("Final AI prompt:", FINAL_PROMPT);
 
-    const result=await chatSession.sendMessage(FINAL_PROMPT);
-    // console.log("--",result?.response?.text());
-    setLoading(false);
-    SaveAiTrip(result?.response?.text());
-  } 
-
-  const SaveAiTrip=async(TripData) => {
-    setLoading(true);
-    const user=JSON.parse(localStorage.getItem("user"));
-    const docId=Date.now().toString();
-    await setDoc(doc(db, "AiTrips", docId), {
-      userSelection:formData,
-      tripData:JSON.parse(TripData),
-      userEmail:user?.email,
-      id:docId,
-      locationImages: locationImages
-    });
-    setLoading(false);
-    navigate('/view-trip/'+docId);
+    try {
+      const result = await chatSession.sendMessage(FINAL_PROMPT);
+      console.log("AI Response received");
+      const responseText = result?.response?.text();
+      console.log("AI Response text:", responseText);
+      SaveAiTrip(responseText);
+    } catch (error) {
+      console.error("Error generating trip with AI:", error);
+      toast.error("Failed to generate trip itinerary. Please try again.");
+      setLoading(false);
+    }
   }
 
-  const GetUserProfile=(tokenInfo)=>{
-    console.log("Token info:", tokenInfo);
-    axios.get(`https://www.googleapis.com/oauth2/v1/userinfo?access_token=${tokenInfo?.access_token}`,{
-      headers: {
-       Authorization: `Bearer ${tokenInfo?.access_token}`,
-       Accept:'application/json'
+  const SaveAiTrip = async(TripData) => {
+    console.log("SaveAiTrip called");
+    
+    if (!currentUser) {
+      console.error("No user found in SaveAiTrip");
+      toast.error("User not signed in. Cannot save trip.");
+      setLoading(false);
+      return;
+    }
+    
+    console.log("Current user in SaveAiTrip:", currentUser.email, currentUser.uid);
+    setLoading(true);
+    const docId = Date.now().toString();
+    console.log("Generated document ID:", docId);
+    
+    try {
+      console.log("Parsing trip data...");
+      let parsedTripData;
+      try {
+        parsedTripData = JSON.parse(TripData);
+        
+        // Validate and normalize the trip data structure
+        if (!parsedTripData.itinerary) {
+          console.warn("No itinerary found in trip data");
+          // Search for itinerary-like data in the response
+          const keys = Object.keys(parsedTripData);
+          const itineraryKey = keys.find(key => key.toLowerCase().includes('day') || key.toLowerCase().includes('itinerary'));
+          
+          if (itineraryKey) {
+            parsedTripData.itinerary = parsedTripData[itineraryKey];
+          } else {
+            // Create a basic itinerary structure
+            parsedTripData.itinerary = [];
+          }
+        }
+        
+        // Ensure itinerary is in the correct format (array of days)
+        if (!Array.isArray(parsedTripData.itinerary)) {
+          const originalItinerary = parsedTripData.itinerary;
+          // If itinerary is an object, convert to array
+          if (typeof originalItinerary === 'object') {
+            parsedTripData.itinerary = Object.keys(originalItinerary)
+              .filter(key => key.toLowerCase().includes('day'))
+              .map(key => {
+                const dayNum = key.replace(/\D/g, '') || key;
+                const dayData = originalItinerary[key];
+                
+                // Normalize the day data structure
+                return {
+                  day: dayNum,
+                  plan: Array.isArray(dayData) ? dayData : [dayData]
+                };
+              });
+          } else {
+            // Default to empty array if unexpected format
+            parsedTripData.itinerary = [];
+          }
+        }
+        
+        // Similarly validate hotel options
+        if (!parsedTripData.hotelOptions) {
+          console.warn("No hotel options found in trip data");
+          // Search for hotel-like data in the response
+          const keys = Object.keys(parsedTripData);
+          const hotelKey = keys.find(key => 
+            key.toLowerCase().includes('hotel') || 
+            key.toLowerCase().includes('accommodation')
+          );
+          
+          if (hotelKey) {
+            parsedTripData.hotelOptions = parsedTripData[hotelKey];
+          } else {
+            // Create a basic hotel options structure
+            parsedTripData.hotelOptions = [];
+          }
+        }
+        
+        // Ensure hotelOptions is in the correct format (array of hotels)
+        if (!Array.isArray(parsedTripData.hotelOptions)) {
+          const originalHotels = parsedTripData.hotelOptions;
+          // If hotelOptions is an object, convert to array
+          if (typeof originalHotels === 'object') {
+            parsedTripData.hotelOptions = Object.values(originalHotels);
+          } else {
+            // Default to empty array if unexpected format
+            parsedTripData.hotelOptions = [];
+          }
+        }
+      } catch (parseError) {
+        console.error("JSON parse error:", parseError);
+        console.log("Raw trip data that failed to parse:", TripData);
+        toast.error("Error parsing AI response. Please try again.");
+        setLoading(false);
+        return;
       }
-    }).then((resp) => {
-      console.log("Google user data:", resp.data);
-      const userData = resp.data;
       
-      // Ensure the 'picture' field is properly set
-      if (!userData.picture && userData.image) {
-        userData.picture = userData.image;
+      console.log("Creating trip document...");
+      const tripDoc = {
+        userSelection: formData,
+        tripData: parsedTripData,
+        userEmail: currentUser?.email,
+        userId: currentUser?.uid,
+        id: docId,
+        locationImages: locationImages,
+        createdAt: new Date().toISOString(),
+        userName: currentUser?.displayName || 'Anonymous'
+      };
+      
+      logObject(tripDoc, "Trip document to save");
+      
+      // Save to Firestore
+      console.log("Writing to Firestore...");
+      await setDoc(doc(db, "AiTrips", docId), tripDoc);
+      
+      console.log("Trip saved successfully with ID:", docId);
+      toast.success("Trip saved successfully!");
+      navigate('/view-trip/'+docId);
+    } catch (error) {
+      console.error("Error saving trip:", error);
+      
+      if (error instanceof SyntaxError) {
+        toast.error("Error reading AI response. Please try generating again.");
+        console.error("Invalid JSON data from AI:", TripData);
+      } else {
+        toast.error("Failed to save trip to database.");
       }
-      
-      localStorage.setItem('user',JSON.stringify(userData));
-      setOpenDialog(false);
-      OnGenerateTrip();
-    }).catch(err => {
-      console.error("Error fetching user profile:", err);
-      toast.error("Failed to get user profile. Please try again.");
-    });
+    } finally {
+      setLoading(false);
+    }
   }
 
-  // Function to fetch location suggestions from LocationIQ
   const searchLocations = async (query) => {
     setSearchTerm(query);
     
@@ -142,7 +282,6 @@ function CreateTrip() {
     }
   };
 
-  // Function to fetch images from Unsplash when a location is selected
   const fetchLocationImages = async (locationName) => {
     try {
       setImagesLoading(true);
@@ -174,7 +313,6 @@ function CreateTrip() {
     setSearchTerm(locationName);
     setPlace(location);
     
-    // Extract the primary location name (city or country)
     const primaryLocation = location.address?.city || 
                            location.address?.state || 
                            location.address?.country ||
@@ -183,11 +321,9 @@ function CreateTrip() {
     handleInputChange('location', locationName);
     setShowSuggestions(false);
     
-    // Fetch images for the selected location
     fetchLocationImages(primaryLocation);
   };
 
-  // Display the first image as a preview after location selection
   const LocationImagePreview = () => {
     if (imagesLoading) {
       return <div className="mt-2 text-sm text-gray-500">Loading location images...</div>;
@@ -244,7 +380,6 @@ function CreateTrip() {
               ))}
             </ul>
           )}
-          {/* Show image preview when a location is selected */}
           <LocationImagePreview />
         </div>
        </div>
@@ -295,23 +430,6 @@ function CreateTrip() {
            : 'Generate Trip' }
           </Button>
       </div>
-
-      <Dialog open={openDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogDescription>
-              <img src="/trip-logo-image.png" alt="Logo" className="h-16 w-auto mx-auto"/>
-              <h2 className="font-bold text-lg mt-6">Sign In with Google</h2>
-              <p>Sign In to the App with Google authentication securely</p>
-              <Button 
-              onClick={login} className="w-full mt-5 flex gap-4 items-center">
-                <FcGoogle className="h-7 w-7"/>
-                Sign In With Google
-              </Button>
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
 
     </div>
   )

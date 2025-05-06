@@ -3,42 +3,29 @@ import { FaEnvelope, FaGithub, FaLinkedin } from 'react-icons/fa';
 
 const Footer = () => {
   return (
-    <footer className="bg-gray-100 py-8 mt-auto border-t">
+    <footer className="bg-white py-8 mt-auto border-t border-gray-100">
       <div className="container mx-auto px-4">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-          {/* Left Section */}
-          <div className="text-gray-600 text-center md:text-left">
-            <div className="flex items-center justify-center md:justify-start mb-2">
-              <img src="/trip-logo-image.png" alt="AI Trip Planner Logo" className="h-8 mr-2" />
-            </div>
-            <p className="text-sm">
+        <div className="flex flex-col md:flex-row justify-between items-center">
+          {/* Logo and Copyright */}
+          <div className="mb-6 md:mb-0">
+            <img src="/trip-logo-image.png" alt="AI Trip Planner Logo" className="h-10 mb-3" />
+            <p className="text-sm text-gray-500">
               © 2025 AI Trip Planner. All rights reserved.
             </p>
           </div>
           
-          {/* Center Section */}
-          <div className="text-gray-600 flex items-center">
-            <span className="font-medium">Built with <span className="text-red-500 mx-1">❤️</span> by Baskaran A</span>
-          </div>
-          
-          {/* Right Section */}
-          <div className="text-gray-600 text-center md:text-right">
-            <div className="flex items-center justify-center md:justify-end gap-4 mb-2">
-              <a href="mailto:baskaran030708@gmail.com" className="hover:text-blue-600 transition-colors">
-                <FaEnvelope className="h-5 w-5" />
-              </a>
-              <a href="https://github.com/baskaran0708" target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 transition-colors">
-                <FaGithub className="h-5 w-5" />
-              </a>
-              <a href="https://linkedin.com/in/baskaran-a-b6757625a" target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 transition-colors">
-                <FaLinkedin className="h-5 w-5" />
-              </a>
-            </div>
-            <p className="text-sm">
-              Contact: <a href="mailto:baskaran030708@gmail.com" className="text-blue-600 hover:underline">
-                baskaran030708@gmail.com
-              </a>
-            </p>
+          {/* Social Links */}
+          <div className="flex items-center space-x-6">
+            <a href="mailto:baskaran030708@gmail.com" className="text-gray-600 hover:text-blue-500 transition-colors">
+              <FaEnvelope className="h-6 w-6" />
+            </a>
+            <a href="https://github.com/baskaran0708" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-gray-900 transition-colors">
+              <FaGithub className="h-6 w-6" />
+            </a>
+            <a href="https://linkedin.com/in/baskaran-a-b6757625a" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-blue-600 transition-colors">
+              <FaLinkedin className="h-6 w-6" />
+            </a>
+            <span className="text-sm text-gray-600 ml-3 font-medium">Built by Baskaran A</span>
           </div>
         </div>
       </div>

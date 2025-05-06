@@ -7,7 +7,6 @@ import CreateTrip from './create-trip/index.jsx'
 import Header from './components/custom/Header.jsx'
 import Footer from './components/custom/Footer.jsx'
 import { Toaster } from './components/ui/sonner.jsx'
-import { GoogleOAuthProvider } from '@react-oauth/google'
 import ViewTrip from './view-trip/[tripId]/index.jsx'
 import MyTrips from './my-trips/index.jsx'
 import ErrorBoundary from './components/custom/ErrorBoundary.jsx'
@@ -17,14 +16,11 @@ import AdminDashboard from './components/admin/Dashboard.jsx'
 import UserManagement from './components/admin/UserManagement.jsx'
 import TripManagement from './components/admin/TripManagement.jsx'
 import DownloadAnalytics from './components/admin/DownloadAnalytics.jsx'
+import AdminSettings from './components/admin/Settings.jsx'
 
 // Debug information
 console.log('React version:', React.version);
 console.log('ReactDOM version:', ReactDOM.version);
-
-// Default client ID (for development purposes only)
-// You should create a .env file with your actual Google client ID
-const googleClientId = import.meta.env.VITE_GOOGLE_AUTH_CLIENT_ID || '123456789012-abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com';
 
 // Layout component for inner pages that need header/footer
 const AppLayout = () => (
@@ -84,6 +80,10 @@ const router = createHashRouter(
         {
           path: 'analytics',
           element: <DownloadAnalytics />
+        },
+        {
+          path: 'settings',
+          element: <AdminSettings />
         }
       ]
     }
@@ -112,12 +112,10 @@ try {
   root.render(
     <React.StrictMode>
       <ErrorBoundary>
-        <GoogleOAuthProvider clientId={googleClientId}>
-          <AuthProvider>
-            <Toaster />
-            <RouterProvider router={router} />
-          </AuthProvider>
-        </GoogleOAuthProvider>
+        <AuthProvider>
+          <Toaster />
+          <RouterProvider router={router} />
+        </AuthProvider>
       </ErrorBoundary>
     </React.StrictMode>
   );

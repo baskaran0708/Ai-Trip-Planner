@@ -1,8 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '@/service/firebaseConfig';
-import { collection, query, orderBy, limit, getDocs, where, getCountFromServer } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, where, getCountFromServer, doc, setDoc, getDoc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Map, Download, Activity } from 'lucide-react';
+
+// Helper function to format dates from various formats
+const formatDate = (dateValue) => {
+  if (!dateValue) return 'Unknown date';
+  
+  try {
+    // If it's a Firestore timestamp with toDate method
+    if (typeof dateValue.toDate === 'function') {
+      return dateValue.toDate().toLocaleDateString();
+    }
+    
+    // If it's an ISO string
+    if (typeof dateValue === 'string') {
+      return new Date(dateValue).toLocaleDateString();
+    }
+    
+    // If it's a date object
+    if (dateValue instanceof Date) {
+      return dateValue.toLocaleDateString();
+    }
+    
+    // Fallback
+    return 'Invalid date';
+  } catch (error) {
+    console.error('Error formatting date:', error, dateValue);
+    return 'Invalid date';
+  }
+};
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({
@@ -12,11 +40,13 @@ const AdminDashboard = () => {
     recentTrips: []
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
+        setError(null);
         
         // Get total users count
         const usersQuery = collection(db, 'users');
@@ -28,10 +58,41 @@ const AdminDashboard = () => {
         const tripsSnapshot = await getCountFromServer(tripsQuery);
         const totalTrips = tripsSnapshot.data().count;
         
-        // Get total downloads count
-        const downloadsQuery = collection(db, 'download_logs');
-        const downloadsSnapshot = await getCountFromServer(downloadsQuery);
-        const totalDownloads = downloadsSnapshot.data().count;
+        // Get total downloads count with better error handling
+        let totalDownloads = 0;
+        try {
+          // First check if the downloads stats document exists
+          const statsDocRef = doc(db, 'stats', 'downloads');
+          const statsDoc = await getDoc(statsDocRef);
+          
+          if (statsDoc.exists()) {
+            // If the stats document exists, use its count
+            totalDownloads = statsDoc.data().count || 0;
+          } else {
+            // Otherwise try to count from the downloads collection
+            try {
+              const downloadsQuery = collection(db, 'download_logs');
+              const downloadsSnapshot = await getCountFromServer(downloadsQuery);
+              totalDownloads = downloadsSnapshot.data().count;
+              
+              // Create the stats document for future use
+              await setDoc(statsDocRef, { 
+                count: totalDownloads,
+                lastUpdated: new Date().toISOString()
+              });
+            } catch (downloadErr) {
+              console.log('Download logs collection not found:', downloadErr);
+              
+              // Create the stats document with 0 downloads
+              await setDoc(statsDocRef, { 
+                count: 0,
+                lastUpdated: new Date().toISOString()
+              });
+            }
+          }
+        } catch (err) {
+          console.error('Error handling download stats:', err);
+        }
         
         // Get recent trips
         const recentTripsQuery = query(
@@ -39,11 +100,16 @@ const AdminDashboard = () => {
           orderBy('createdAt', 'desc'),
           limit(5)
         );
+        
         const recentTripsSnapshot = await getDocs(recentTripsQuery);
-        const recentTrips = recentTripsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        const recentTrips = recentTripsSnapshot.docs.map(doc => {
+          const data = doc.data();
+          console.log('Trip data:', data.id, data.createdAt);
+          return {
+            id: doc.id,
+            ...data
+          };
+        });
         
         setStats({
           totalUsers,
@@ -53,6 +119,7 @@ const AdminDashboard = () => {
         });
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
+        setError('Failed to load dashboard data. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -65,6 +132,16 @@ const AdminDashboard = () => {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 border border-red-300 bg-red-50 rounded-md">
+        <h2 className="text-lg font-medium text-red-800">Error</h2>
+        <p className="text-red-600">{error}</p>
+        <p className="mt-2">Please check the console for more details.</p>
       </div>
     );
   }
@@ -118,14 +195,17 @@ const AdminDashboard = () => {
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-medium">
-                        {trip.destination || 'Unnamed Trip'}
+                        {trip.userSelection?.location || 'Unnamed Trip'}
                       </h3>
                       <p className="text-sm text-gray-500">
-                        Created: {trip.createdAt?.toDate().toLocaleDateString() || 'Unknown date'}
+                        Created: {formatDate(trip.createdAt)}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        By: {trip.userName || trip.userEmail || 'Anonymous'}
                       </p>
                     </div>
                     <span className="text-sm bg-blue-100 text-blue-800 py-1 px-2 rounded">
-                      {trip.duration || 'N/A'} days
+                      {trip.userSelection?.totalDays || 'N/A'} days
                     </span>
                   </div>
                 </div>
