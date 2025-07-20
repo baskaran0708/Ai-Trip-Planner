@@ -49,7 +49,7 @@ Currently, two official plugins are available:
 <br />
 
 # You can check app this link :point_down:
-https://full-stack-ai-trip-planner.vercel.app/
+https://ai-trip-planner-avda.vercel.app
 
 
 ## Setup .env file
